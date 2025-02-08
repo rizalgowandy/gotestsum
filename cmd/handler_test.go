@@ -13,7 +13,6 @@ import (
 	"gotest.tools/gotestsum/testjson"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/assert/cmp"
-	"gotest.tools/v3/env"
 	"gotest.tools/v3/fs"
 	"gotest.tools/v3/golden"
 )
@@ -32,16 +31,18 @@ func TestPostRunHook(t *testing.T) {
 		stdout:               buf,
 	}
 
-	env.Patch(t, "GOTESTSUM_FORMAT", "short")
+	t.Setenv("GOTESTSUM_FORMAT", "short")
+	t.Setenv("GOTESTSUM_FORMAT_ICONS", "default")
 
 	exec := newExecFromTestData(t)
 	err = postRunHook(opts, exec)
 	assert.NilError(t, err)
 
 	actual := text.ProcessLines(t, buf, func(line string) string {
-		if strings.HasPrefix(line, "GOTESTSUM_ELAPSED=0.0") {
+		if strings.HasPrefix(line, "GOTESTSUM_ELAPSED=0.0") &&
+			strings.HasSuffix(line, "s") {
 			i := strings.Index(line, "=")
-			return line[:i] + "=0.000"
+			return line[:i] + "=0.000s"
 		}
 		return line
 	})
@@ -52,7 +53,7 @@ func newExecFromTestData(t *testing.T) *testjson.Execution {
 	t.Helper()
 	f, err := os.Open("../testjson/testdata/input/go-test-json.out")
 	assert.NilError(t, err)
-	defer f.Close() // nolint: errcheck
+	defer f.Close() //nolint:errcheck
 
 	exec, err := testjson.ScanTestOutput(testjson.ScanConfig{
 		Stdout: f,
@@ -71,6 +72,8 @@ func (bufferCloser) Close() error { return nil }
 func (bufferCloser) Sync() error { return nil }
 
 func TestEventHandler_Event_WithMissingActionFail(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "no")
+
 	buf := new(bufferCloser)
 	errBuf := new(bytes.Buffer)
 	format := testjson.NewEventFormatter(errBuf, "testname", testjson.FormatOptions{})

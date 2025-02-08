@@ -77,7 +77,7 @@ func (s *handlerFails) Err(_ string) error {
 }
 
 func TestParseEvent(t *testing.T) {
-	// nolint: lll
+	//nolint:lll
 	raw := `{"Time":"2018-03-22T22:33:35.168308334Z","Action":"output","Package":"example.com/good","Test": "TestOk","Output":"PASS\n"}`
 	event, err := parseEvent([]byte(raw))
 	assert.NilError(t, err)
@@ -294,6 +294,23 @@ func TestFilterFailedUnique_MultipleNested(t *testing.T) {
 		{ID: 2, Package: "pkg2", Test: TestName("TestParent/TestNested")},
 		{ID: 3, Package: "pkg2", Test: TestName("TestParent/TestNestedPrefix")},
 		{ID: 4, Package: "pkg2", Test: TestName("TestParentPrefix")},
+	}
+	cmpTestCase := cmp.AllowUnexported(TestCase{})
+	assert.DeepEqual(t, expected, actual, cmpTestCase)
+}
+
+func TestFilterFailedUnique_NestedWithGaps(t *testing.T) {
+	input := []TestCase{
+		{ID: 1, Package: "pkg", Test: "TestParent/foo/bar/baz"},
+		{ID: 2, Package: "pkg", Test: "TestParent"},
+		{ID: 3, Package: "pkg", Test: "TestParent1/foo/bar"},
+		{ID: 4, Package: "pkg", Test: "TestParent1"},
+	}
+	actual := FilterFailedUnique(input)
+
+	expected := []TestCase{
+		{ID: 1, Package: "pkg", Test: "TestParent/foo/bar/baz"},
+		{ID: 3, Package: "pkg", Test: "TestParent1/foo/bar"},
 	}
 	cmpTestCase := cmp.AllowUnexported(TestCase{})
 	assert.DeepEqual(t, expected, actual, cmpTestCase)

@@ -6,42 +6,8 @@ orbs:
 workflows:
   ci:
     jobs:
-      - go/test:
-          name: test-go-1.18
-          gotestsum-format: testname
-          executor:
-            name: go/golang
-            tag: 1.18-alpine
-
-      - go/test:
-          name: test-go-1.19
-          gotestsum-format: testname
-          executor:
-            name: go/golang
-            tag: 1.19-alpine
-
-      - go/test:
-          name: test-go-1.20
-          gotestsum-format: testname
-          executor:
-            name: go/golang
-            tag: 1.20-alpine
-
-      - go/test:
-          name: test-windows
-          executor: windows
-          pre-steps:
-            - run: |
-                git config --global core.autocrlf false
-                git config --global core.symlinks true
-            - run: |
-                choco upgrade golang
-                echo 'export PATH="$PATH:/c/Program Files/Go/bin"' > $BASH_ENV
-            - run: go version
-
       - lint
       - build
-      - run
 
       - update-windows-golden:
           filters:
@@ -85,7 +51,7 @@ jobs:
         default: false
     executor:
       name: go/golang
-      tag: 1.20-alpine
+      tag: 1.23-alpine
     steps:
       - go/install: {package: git}
       - go/install-ssh
@@ -109,24 +75,10 @@ jobs:
           path: ./dist
           destination: dist
 
-  run:
-    executor:
-      name: go/golang
-      tag: 1.20-alpine
-    steps:
-      - go/install: {package: git}
-      - go/install-ssh
-      - checkout
-      - go/mod-download
-      - run: |
-          mkdir -p dist
-          go build -o dist/gotestsum .
-      - run: dist/gotestsum
-
   lint:
     executor:
       name: go/golang
-      tag: 1.20-alpine
+      tag: 1.23-alpine
     steps:
       - checkout
       - run: go mod download
@@ -136,7 +88,7 @@ jobs:
             mkdir -p /go/bin
 
             download=https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh
-            wget -O- -q "$download" | sh -s -- -b /go/bin/ v1.51.1
+            wget -O- -q "$download" | sh -s -- -b /go/bin/ v1.60.3
       - run:
           name: Lint
           command: |

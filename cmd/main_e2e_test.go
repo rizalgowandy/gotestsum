@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,6 +30,10 @@ func TestE2E_RerunFails(t *testing.T) {
 	if testing.Short() {
 		t.Skip("too slow for short run")
 	}
+	if !isGoVersionAtLeast("go1.22") {
+		t.Skipf("version %v no longer supported by this test", runtime.Version())
+	}
+	t.Setenv("GITHUB_ACTIONS", "no")
 
 	type testCase struct {
 		name        string
@@ -149,7 +152,7 @@ func (p *pkgFixtureFile) Do(f func() string) {
 	p.once.Do(func() {
 		p.filename = f()
 		p.cleanup = func() {
-			os.RemoveAll(p.filename) // nolint: errcheck
+			os.RemoveAll(p.filename) //nolint:errcheck
 		}
 	})
 }
@@ -170,8 +173,7 @@ func compileBinary(t *testing.T) string {
 	}
 
 	binaryFixture.Do(func() string {
-		tmpDir, err := ioutil.TempDir("", "gotestsum-binary")
-		assert.NilError(t, err)
+		tmpDir := t.TempDir()
 
 		path := filepath.Join(tmpDir, "gotestsum")
 		result := icmd.RunCommand("go", "build", "-o", path, "..")
@@ -220,6 +222,7 @@ func TestE2E_MaxFails_EndTestRun(t *testing.T) {
 	envVars["TEST_SEEDFILE"] = tmpFile.Path()
 	env.PatchAll(t, envVars)
 
+	t.Setenv("GOTESTSUM_FORMAT", "pkgname")
 	flags, opts := setupFlags("gotestsum")
 	args := []string{"--max-fails=2", "--packages=./testdata/e2e/flaky/", "--", "-tags=testdata"}
 	assert.NilError(t, flags.Parse(args))
@@ -244,6 +247,7 @@ func TestE2E_IgnoresWarnings(t *testing.T) {
 	if testing.Short() {
 		t.Skip("too slow for short run")
 	}
+	t.Setenv("GITHUB_ACTIONS", "no")
 
 	flags, opts := setupFlags("gotestsum")
 	args := []string{

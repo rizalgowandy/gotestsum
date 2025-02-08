@@ -19,7 +19,6 @@ import (
 // Action of TestEvent
 type Action string
 
-// nolint: unused
 const (
 	ActionRun    Action = "run"
 	ActionPause  Action = "pause"
@@ -61,11 +60,6 @@ type TestEvent struct {
 // PackageEvent returns true if the event is a package start or end event
 func (e TestEvent) PackageEvent() bool {
 	return e.Test == ""
-}
-
-// ElapsedFormatted returns Elapsed formatted in the go test format, ex (0.00s).
-func (e TestEvent) ElapsedFormatted() string {
-	return fmt.Sprintf("(%.2fs)", e.Elapsed)
 }
 
 // Bytes returns the serialized JSON bytes that were parsed to create the event.
@@ -199,7 +193,6 @@ func (p *Package) addOutput(id int, output string) {
 	if strings.HasPrefix(output, "panic: ") {
 		p.panicked = true
 	}
-	// TODO: limit size of buffered test output
 	p.output[id] = append(p.output[id], output)
 }
 
@@ -536,7 +529,7 @@ func (e *Execution) Failed() []TestCase {
 	if e == nil {
 		return nil
 	}
-	var failed []TestCase //nolint:prealloc
+	var failed []TestCase
 	for _, name := range sortedKeys(e.packages) {
 		pkg := e.packages[name]
 
@@ -569,8 +562,9 @@ func FilterFailedUnique(tcs []TestCase) []TestCase {
 		if _, exists := parents[tc.Package]; !exists {
 			parents[tc.Package] = make(map[string]bool)
 		}
-		if parent := tc.Test.Parent(); parent != "" {
-			parents[tc.Package][parent] = true
+
+		for p := tc.Test.Parent(); p != ""; p = TestName(p).Parent() {
+			parents[tc.Package][p] = true
 		}
 		if _, exists := parents[tc.Package][tc.Test.Name()]; exists {
 			continue // tc is a parent of a failing subtest
@@ -646,7 +640,7 @@ func (e *Execution) HasPanic() bool {
 
 func (e *Execution) end() []TestEvent {
 	e.done = true
-	var result []TestEvent // nolint: prealloc
+	var result []TestEvent
 	for _, pkg := range e.packages {
 		result = append(result, pkg.end()...)
 	}
@@ -754,12 +748,12 @@ func readStdout(config ScanConfig, execution *Execution) error {
 		event, err := parseEvent(raw)
 		switch {
 		case err == errBadEvent:
-			// nolint: errcheck
+			//nolint:errcheck
 			config.Handler.Err(errBadEvent.Error() + ": " + scanner.Text())
 			continue
 		case err != nil:
 			if config.IgnoreNonJSONOutputLines {
-				// nolint: errcheck
+				//nolint:errcheck
 				config.Handler.Err(string(raw))
 				continue
 			}

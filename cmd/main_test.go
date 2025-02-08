@@ -86,7 +86,12 @@ func TestOptions_Validate_FromFlags(t *testing.T) {
 		{
 			name:     "rerun-fails with failfast",
 			args:     []string{"--rerun-fails", "--packages=./...", "--", "-failfast"},
-			expected: "-failfast can not be used with --rerun-fails",
+			expected: "-(test.)failfast can not be used with --rerun-fails",
+		},
+		{
+			name:     "rerun-fails with failfast",
+			args:     []string{"--rerun-fails", "--packages=./...", "--", "-test.failfast"},
+			expected: "-(test.)failfast can not be used with --rerun-fails",
 		},
 	}
 	for _, tc := range testCases {
@@ -306,6 +311,21 @@ func TestGoTestCmdArgs(t *testing.T) {
 		},
 		expected: []string{"go", "test", "-json", "-run=TestOne|TestTwo", "-count", "1", "-run", "./fails"},
 	})
+	t.Run("rerun with -run flag", func(t *testing.T) {
+		tc := testCase{
+			opts: &options{
+				args:     []string{"-run", "TestExample", "-tags", "some", "-json"},
+				packages: []string{"./pkg"},
+			},
+			rerunOpts: rerunOpts{
+				runFlag: "-run=TestOne|TestTwo",
+				pkg:     "./fails",
+			},
+			expected: []string{"go", "test", "-run=TestOne|TestTwo", "-tags", "some", "-json", "./fails"},
+		}
+		run(t, "first", tc)
+		run(t, "second", tc)
+	})
 }
 
 func runCase(t *testing.T, name string, fn func(t *testing.T)) {
@@ -326,7 +346,7 @@ func TestRun_RerunFails_WithTooManyInitialFailures(t *testing.T) {
 {"Package": "pkg", "Action": "fail"}
 `
 
-	fn := func(args []string) *proc {
+	fn := func([]string) *proc {
 		return &proc{
 			cmd:    fakeWaiter{result: newExitCode("failed", 1)},
 			stdout: strings.NewReader(jsonFailed),
@@ -360,7 +380,7 @@ func TestRun_RerunFails_BuildErrorPreventsRerun(t *testing.T) {
 {"Package": "pkg", "Action": "fail"}
 `
 
-	fn := func(args []string) *proc {
+	fn := func([]string) *proc {
 		return &proc{
 			cmd:    fakeWaiter{result: newExitCode("failed", 1)},
 			stdout: strings.NewReader(jsonFailed),
@@ -396,7 +416,7 @@ func TestRun_RerunFails_PanicPreventsRerun(t *testing.T) {
 {"Package": "pkg", "Action": "fail"}
 `
 
-	fn := func(args []string) *proc {
+	fn := func([]string) *proc {
 		return &proc{
 			cmd:    fakeWaiter{result: newExitCode("failed", 1)},
 			stdout: strings.NewReader(jsonFailed),
@@ -464,7 +484,7 @@ func TestRun_JsonFileIsSyncedBeforePostRunCommand(t *testing.T) {
 
 	input := golden.Get(t, "../../testjson/testdata/input/go-test-json.out")
 
-	fn := func(args []string) *proc {
+	fn := func([]string) *proc {
 		return &proc{
 			cmd:    fakeWaiter{},
 			stdout: bytes.NewReader(input),
@@ -500,7 +520,7 @@ func TestRun_JsonFileIsSyncedBeforePostRunCommand(t *testing.T) {
 func TestRun_JsonFileTimingEvents(t *testing.T) {
 	input := golden.Get(t, "../../testjson/testdata/input/go-test-json.out")
 
-	fn := func(args []string) *proc {
+	fn := func([]string) *proc {
 		return &proc{
 			cmd:    fakeWaiter{},
 			stdout: bytes.NewReader(input),

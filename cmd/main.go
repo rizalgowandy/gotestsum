@@ -56,13 +56,18 @@ func setupFlags(name string) (*pflag.FlagSet, *options) {
 	flags.Usage = func() {
 		usage(os.Stdout, name, flags)
 	}
+
 	flags.StringVarP(&opts.format, "format", "f",
-		lookEnvWithDefault("GOTESTSUM_FORMAT", "short"),
+		lookEnvWithDefault("GOTESTSUM_FORMAT", "pkgname"),
 		"print format of test input")
 	flags.BoolVar(&opts.formatOptions.HideEmptyPackages, "format-hide-empty-pkg",
 		false, "do not print empty packages in compact formats")
 	flags.BoolVar(&opts.formatOptions.UseHiVisibilityIcons, "format-hivis",
 		false, "use high visibility characters in some formats")
+	_ = flags.MarkHidden("format-hivis")
+	flags.StringVar(&opts.formatOptions.Icons, "format-icons",
+		lookEnvWithDefault("GOTESTSUM_FORMAT_ICONS", ""),
+		"use different icons, see help for options")
 	flags.BoolVar(&opts.rawCommand, "raw-command", false,
 		"don't prepend 'go test -json' to the 'go test' command")
 	flags.BoolVar(&opts.ignoreNonJSONOutputLines, "ignore-non-json-output-lines", false,
@@ -139,12 +144,22 @@ Formats:
     pkgname                  print a line for each package
     pkgname-and-test-fails   print a line for each package and failed test output
     testname                 print a line for each test and package
+    testdox                  print a sentence for each test using gotestdox
+    github-actions           testname format with github actions log grouping
     standard-quiet           standard go test format
     standard-verbose         standard go test -v format
 
+Format icons:
+    default                  the original unicode (✓, ∅, ✖)
+    hivis                    higher visibility unicode (✅, ➖, ❌)
+    text                     simple text characters (PASS, SKIP, FAIL)
+    codicons                 requires a font from https://www.nerdfonts.com/ (  )
+    octicons                 requires a font from https://www.nerdfonts.com/ (  )
+    emoticons                requires a font from https://www.nerdfonts.com/ (󰇵 󰇶 󰇸)
+
 Commands:
     %[1]s tool slowest   find or skip the slowest tests
-    %[1]s help           print this help next
+    %[1]s help           print this help text
 `, name)
 }
 
@@ -193,8 +208,10 @@ func (o options) Validate() error {
 			"when go test args are used with --rerun-fails " +
 				"the list of packages to test must be specified by the --packages flag")
 	}
-	if o.rerunFailsMaxAttempts > 0 && boolArgIndex("failfast", o.args) > -1 {
-		return fmt.Errorf("-failfast can not be used with --rerun-fails " +
+	if o.rerunFailsMaxAttempts > 0 &&
+		(boolArgIndex("failfast", o.args) > -1 ||
+			boolArgIndex("test.failfast", o.args) > -1) {
+		return fmt.Errorf("-(test.)failfast can not be used with --rerun-fails " +
 			"because not all test cases will run")
 	}
 	return nil
@@ -205,7 +222,7 @@ func defaultNoColor() bool {
 	// true for many CI environments which support color output. So instead, we
 	// try to detect these CI environments via their environment variables.
 	// This code is based on https://github.com/jwalton/go-supportscolor
-	if _, exists := os.LookupEnv("CI"); exists {
+	if value, exists := os.LookupEnv("CI"); exists {
 		var ciEnvNames = []string{
 			"APPVEYOR",
 			"BUILDKITE",
@@ -222,6 +239,9 @@ func defaultNoColor() bool {
 			}
 		}
 		if os.Getenv("CI_NAME") == "codeship" {
+			return false
+		}
+		if value == "woodpecker" {
 			return false
 		}
 	}
@@ -255,7 +275,7 @@ func run(opts *options) error {
 	if err != nil {
 		return err
 	}
-	defer handler.Close() // nolint: errcheck
+	defer handler.Close() //nolint:errcheck
 	cfg := testjson.ScanConfig{
 		Stdout:                   goTestProc.stdout,
 		Stderr:                   goTestProc.stderr,
@@ -317,7 +337,7 @@ func goTestCmdArgs(opts *options, rerunOpts rerunOpts) []string {
 		return result
 	}
 
-	args := opts.args
+	args := append([]string{}, opts.args...)
 	result := []string{"go", "test"}
 
 	if len(args) == 0 {
